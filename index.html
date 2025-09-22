@@ -3,89 +3,115 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>QR Creator</title>
+  <title>QR Maker</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#0b0f14;color:#e5e7eb}
-    .card{background:#111827;padding:20px;border-radius:12px;width:min(520px,92vw);box-shadow:0 6px 24px rgba(0,0,0,.3)}
-    label{display:block;font-size:14px;margin-bottom:6px;color:#9ca3af}
-    input{width:100%;padding:10px 12px;border:1px solid #374151;border-radius:8px;background:#0f172a;color:#e5e7eb}
-    .row{display:flex;gap:12px;align-items:center;margin-top:12px}
-    button{padding:10px 14px;border:0;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer}
-    canvas{display:block;margin:16px auto;border-radius:8px;background:#000}
-    .meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#9ca3af}
-    a{color:#93c5fd;text-decoration:none}
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #0b0f14; color: #e5e7eb;
+    }
+    .card {
+      width: min(560px, 94vw);
+      background: #111827; border: 1px solid #1f2937; border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35); padding: 18px;
+    }
+    h1 { margin: 0 0 8px 0; font-size: 18px; }
+    p.hint { margin: 6px 0 14px; font-size: 12px; color: #9ca3af; }
+    .row { display: flex; gap: 10px; }
+    input[type=text] {
+      flex: 1; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid #374151; background: #0f172a; color: #e5e7eb;
+    }
+    button {
+      padding: 10px 14px; border: 0; border-radius: 10px;
+      background: #2563eb; color: #fff; cursor: pointer;
+    }
+    .qr-wrap {
+      display: grid; place-items: center; margin-top: 14px; padding: 12px;
+      background: #0f172a; border: 1px dashed #293042; border-radius: 12px;
+    }
+    #qrcode canvas, #qrcode img {
+      width: 256px; height: 256px; image-rendering: pixelated; border-radius: 8px;
+      background: #ffffff;
+    }
+    .meta {
+      margin-top: 10px; display: flex; justify-content: space-between; font-size: 12px; color: #9ca3af;
+    }
+    a { color: #93c5fd; text-decoration: none; }
   </style>
 </head>
 <body>
   <div class="card">
-    <label for="text">Text or URL</label>
-    <input id="text" placeholder="https://example.com" />
+    <h1>QR Maker</h1>
+    <p class="hint">Enter any text or URL. Press Generate. Download the PNG.</p>
+
     <div class="row">
-      <button id="make">Generate</button>
-      <label>Size
-        <input id="size" type="number" value="256" min="128" max="1024" style="width:90px" />
-      </label>
-      <label>ECL
-        <select id="ecl">
-          <option value="M">M</option>
-          <option value="L">L</option>
-          <option value="Q">Q</option>
-          <option value="H">H</option>
-        </select>
-      </label>
+      <input id="text" type="text" placeholder="https://example.com" autocomplete="off" />
+      <button id="gen">Generate</button>
     </div>
 
-    <canvas id="qr" width="256" height="256"></canvas>
+    <div class="qr-wrap">
+      <div id="qrcode" aria-label="QR code output"></div>
+    </div>
+
     <div class="meta">
       <span id="status">Ready</span>
-      <a id="dl" download="qr.png">Download PNG</a>
+      <a id="download" download="qr.png" href="#">Download PNG</a>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <!-- Local copy of qrcode.min.js -->
+  <script src="qrcode.min.js"></script>
   <script>
-    const $ = id => document.getElementById(id);
-    const input = $("text"), btn = $("make"), canvas = $("qr"), dl = $("dl");
-    const size = $("size"), ecl = $("ecl"), status = $("status");
+    (function () {
+      const $ = id => document.getElementById(id);
+      const input = $("text");
+      const genBtn = $("gen");
+      const box = $("qrcode");
+      const status = $("status");
+      const dl = $("download");
+      const SIZE = 256;
 
-    function render() {
-      const text = input.value.trim();
-      const n = Math.max(128, Math.min(1024, parseInt(size.value || 256, 10)));
-      canvas.width = n; canvas.height = n;
-
-      if (!text) {
-        const g = canvas.getContext("2d");
-        g.clearRect(0,0,n,n);
+      function clearQR() {
+        box.innerHTML = "";
         status.textContent = "Enter text";
         dl.removeAttribute("href");
-        return;
       }
 
-      QRCode.toCanvas(canvas, text, {
-        errorCorrectionLevel: ecl.value,
-        width: n,
-        margin: 2,
-        color: { dark: "#000000", light: "#ffffff" }
-      }, (err) => {
-        if (err) { status.textContent = "Error"; console.error(err); return; }
-        status.textContent = n + "px • " + ecl.value;
-        dl.href = canvas.toDataURL("image/png");
-      });
-      // Persist in URL for sharing
-      const p = new URLSearchParams(location.search);
-      p.set("t", text); p.set("s", n); p.set("e", ecl.value);
-      history.replaceState(null, "", "?" + p.toString());
-    }
+      function makeQR(text) {
+        box.innerHTML = "";
+        new QRCode(box, {
+          text: text,
+          width: SIZE,
+          height: SIZE,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
 
-    btn.addEventListener("click", render);
-    input.addEventListener("keydown", e => { if (e.key === "Enter") render(); });
+        setTimeout(() => {
+          const cvs = box.querySelector("canvas");
+          if (cvs) {
+            dl.href = cvs.toDataURL("image/png");
+          } else {
+            const img = box.querySelector("img");
+            dl.href = img ? img.src : "#";
+          }
+          status.textContent = SIZE + "px • EC=M";
+        }, 0);
+      }
 
-    // Init from URL if present
-    const params = new URLSearchParams(location.search);
-    if (params.has("t")) input.value = params.get("t");
-    if (params.has("s")) size.value = params.get("s");
-    if (params.has("e")) ecl.value = params.get("e");
-    render();
+      function render() {
+        const text = input.value.trim();
+        if (!text) { clearQR(); return; }
+        makeQR(text);
+      }
+
+      genBtn.addEventListener("click", render);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") render(); });
+    })();
   </script>
 </body>
 </html>
